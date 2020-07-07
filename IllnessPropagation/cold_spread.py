@@ -62,6 +62,9 @@ class Individual:
     def is_dead(self):
         return self._status == 3
 
+    def can_contract(self):
+        return self._status == 0
+
     def make_sick(self, timestep):
         self._sick_at_time = timestep
         self._status = 1
@@ -76,40 +79,64 @@ class Individual:
 
 class Population:
 
+    '''
+    Lists contain individuals depending on their status. _population contains all individuals,
+    where the 4 remaining list are a partition of _population.
+    '''
+
     __slots__ = '_population',\
-                '_sickPopulation'
+                '_not_exposed',\
+                '_sick',\
+                '_recovered',\
+                '_dead'
 
     def __init__(self, params):
 
-        # TODO read params from file, craete population and individuals.
         # Create population of individuals.
+        # TODO change datastructures to allow for indexing by individual key. 
         self._population = []
-        for index in range(numOfIndividuals):
-            self._population.append(Individual())
+        self._not_exposed = []
+        self._sick = []
+        self._recovered = []
+        self._dead = []
 
-        sickInds = random.sample(self._population, numOfSickIndividuals)
-        self._sickPopulation = []
-        for sickInd in sickInds:
-            sickInd.make_sick(0)
-            self._sickPopulation.append(sickInd)
+        for index in range(params['pop_init_size']):
 
-    def size(self):
-        # The number of individuals in the population.
-        return len(self._population)
+            recover_time = round(np.random.normal(params['recover_time'][0],
+                                                  params['recover_time'][1]))
+            if recover_time < 0: recover_time = 1
+
+            interaction_amount = round(np.random.normal(params['interaction_amount'][0],
+                                                        params['interaction_amount'][1]))
+            if interaction_amount < 0: interaction_amount = 0
+
+            ind = Individual(
+                prob_death=params['prob_death'],
+                time_to_recover=recover_time,
+                interaction_amount=interaction_amount
+            )
+            self._population.append(ind)
+            self._not_exposed.append(ind)
+
+        # Create sub population of sick individuals.
+        sick_inds = random.sample(self._not_exposed, params['pop_init_sick_size'])
+
+        for sick_ind in sick_inds:
+            sick_ind.make_sick(0)
+            self._sick.append(self._not_exposed.pop(sick_ind))
 
     def population_status(self):
         # The status of each individual in the population
-        return [ind._status for ind in self._population]
+        return [ind._status for ind in self._not_exposed]
 
     def population_status_count(self):
-        # The count of not sick, sick, and recovered individuals currently
-        # in population.
-        pop_status_count = np.zeros(4,)
+        # The number of individuals in each sub population.
 
-        for ind in self._population:
-            pop_status_count[ind._status] += 1
 
-        return pop_status_count.tolist()
+        return [len(self._not_exposed),
+                len(self._sick),
+                len(self._recovered),
+                len(self._dead)]
 
     def make_interactions(self):
         # For each individual, choose interaction with other individuals at random.
@@ -119,7 +146,7 @@ class Population:
             for idx in range(ind._interaction_amount):
                 interact_with_ind = self.get_random_individual()
                 # Only add if one is sick.
-                if interact_with_ind._isSick or ind._isSick:
+                if interact_with_ind.is_sick() or ind.is_sick():
                     interactions.append((ind, interact_with_ind))
 
         return interactions
@@ -129,26 +156,19 @@ class Population:
             Compute probability that sickness spreads between
             two individuals using random number.
         """
-        if ind1._isSick and ind2._status != 2:
+        if ind1 in self._sick and ind2 in self._not_exposed:
             r = random.random()
 
-            if r < ind2._interactionSicknessProb:
-                if ind2 not in self._sickPopulation:
-                    ind2.make_sick(timestep)
-                    self._sickPopulation.append(ind2)
+            if r < ind2._prob_sick_from_interaction:
+                ind2.make_sick(timestep)
+                self._sick.append(self._not_exposed.remove(ind2))
 
-        if ind1._status != 2 and ind2._isSick:
+        if ind1 in self._not_exposed and ind2 in self._sick:
             r = random.random()
-
-            if r < ind1._interactionSicknessProb:
-                if ind1 not in self._sickPopulation:
-                    ind1.make_sick(timestep)
-                    self._sickPopulation.append(ind1)
 
             if r < ind1._prob_sick_from_interaction:
-                if ind1 not in self._sickPopulation:
-                    ind1.make_sick(timestep)
-                    self._sickPopulation.append(ind1)
+                ind1.make_sick(timestep)
+                self._sick.append(self._not_exposed.remove(ind1))
 
 
     def get_random_individual(self):
@@ -163,15 +183,16 @@ class Population:
                 self.play_out_interaction(timestep, ind1, ind2)
 
             # Recover individuals
-            for ind in self._sickPopulation:
+            for ind in self._sick:
                 if timestep - (ind._sick_at_time + ind._time_to_recover) >= 0:
                     ind.make_recover(timestep)
-                    self._sickPopulation.remove(ind)
+                    self._sick.remove(ind)
 
             # Death of individuals
-            for ind in self._sickPopulation:
+            for ind in self._sick:
                 r = random.random()
                 if r < ind._prob_death:
+                    self._dead.append(self._sick.remove(ind))
                     ind.make_dead(timestep)
 
             if display_status_count:
@@ -181,4 +202,7 @@ class Population:
 if __name__ == '__main__':
 
     params = json.load(open('cold_spread.json'))
-    print(params["recover_time"][0])
+
+    pop = Population(params)
+
+    pop.runExperiment(100, True)

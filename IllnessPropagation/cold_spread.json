@@ -1,7 +1,7 @@
 {
-  "pop_init_count": 1000,
-  "pop_init_sick": 5,
+  "pop_init_size": 100,
+  "pop_init_sick_size": 5,
   "recover_time": [10, 2],
   "interaction_amount": [6, 3],
-  "death_prob": 0.01
+  "prob_death": 0.01
 }
