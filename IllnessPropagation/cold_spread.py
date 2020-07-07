@@ -11,11 +11,11 @@ import json
     Once sick, an individual continues to be sick for a certain number of days before recovering.
 
     TODO:
-    - Add probabilities for getting sick, spreading with interaction,
-    - Add recovery system.
-    - Add means of interaction between individuals
+    C Add probabilities for getting sick, spreading with interaction,
+    C Add recovery system.
+    C Add means of interaction between individuals
+    
     - Add method for tracking statistics of episode.
-
 '''
 
 class Individual:
@@ -111,7 +111,6 @@ class Population:
 
         return pop_status_count.tolist()
 
-
     def make_interactions(self):
         # For each individual, choose interaction with other individuals at random.
         # Store as 2-tuple (A,B)
@@ -130,23 +129,21 @@ class Population:
             Compute probability that sickness spreads between
             two individuals using random number.
         """
-        if ind1._isSick and not ind2._isSick:
+        if ind1._isSick and ind2._status != 2:
             r = random.random()
 
             if r < ind2._interactionSicknessProb:
-                ind2.make_sick(timestep)
-                self._sickPopulation.append(ind2)
-            if r < ind2._prob_sick_from_interaction:
                 if ind2 not in self._sickPopulation:
                     ind2.make_sick(timestep)
                     self._sickPopulation.append(ind2)
 
-        if not ind1._isSick and ind2._isSick:
+        if ind1._status != 2 and ind2._isSick:
             r = random.random()
 
             if r < ind1._interactionSicknessProb:
-                ind1.make_sick(timestep)
-                self._sickPopulation.append(ind1)
+                if ind1 not in self._sickPopulation:
+                    ind1.make_sick(timestep)
+                    self._sickPopulation.append(ind1)
 
             if r < ind1._prob_sick_from_interaction:
                 if ind1 not in self._sickPopulation:
@@ -183,7 +180,5 @@ class Population:
 
 if __name__ == '__main__':
 
-    # Read parameters from file into dict, pass to Population constructor.
     params = json.load(open('cold_spread.json'))
-    population = Population(params)
-
+    print(params["recover_time"][0])
