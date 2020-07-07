@@ -1,8 +1,6 @@
 import random
 import numpy as np
 import json
-
-from ReadParams import read_dict
 '''
     An experiment that stimulates the spread of an illness through a population.
 
@@ -22,47 +20,68 @@ from ReadParams import read_dict
 
 class Individual:
 
-    __slots__ = '_isSick',\
-                '_status',\
-                '_sickAtTime',\
-                '_recoveredAtTime',\
-                '_timeToRecover',\
-                '_interactionSicknessProb',\
-                '_numOfInteractions'
+    __slots__ = '_status', \
+                '_age',\
+                '_sick_at_time', \
+                '_recovered_at_time', \
+                '_dead_at_time', \
+                '_time_to_recover', \
+                '_prob_death',\
+                '_prob_sick_from_interaction', \
+                '_interaction_amount'
 
     """
         _status: 
             0: not sick, 
-            1:  is sick,
-            2:  is recovered.        
+            1: is sick,
+            2: is recovered.  
+            3: is dead      
     """
 
     def __init__(self,
-                 interaction_sickness_prob=0.3,
-                 time_to_recover = 5):
-        self._isSick = False
+                 age=0,
+                 prob_death=0.00,
+                 prob_sick_from_interaction=0.05,
+                 time_to_recover = 10,
+                 interaction_amount=5):
+
         self._status = 0
-        self._interactionSicknessProb = interaction_sickness_prob
-        self._timeToRecover = time_to_recover
-        self._numOfInteractions = 3
+        self._prob_death = prob_death
+        self._prob_sick_from_interaction = prob_sick_from_interaction
+        # The number of timesteps to recover.
+        self._time_to_recover = time_to_recover
+        # Number of interactions per time step.
+        self._interaction_amount = interaction_amount
+
+    def is_sick(self):
+        return self._status == 1
+
+    def is_recovered(self):
+        return self._status == 2
+
+    def is_dead(self):
+        return self._status == 3
 
     def make_sick(self, timestep):
-        self._sickAtTime = timestep
+        self._sick_at_time = timestep
         self._status = 1
-        self._isSick = True
 
     def make_recover(self, timestep):
-        self._recoveredAtTime = timestep
+        self._recovered_at_time = timestep
         self._status = 2
-        self._isSick = False
+
+    def make_dead(self, timestep):
+        self._dead_at_time = timestep
+        self._status = 3
 
 class Population:
 
     __slots__ = '_population',\
                 '_sickPopulation'
 
-    def __init__(self, numOfIndividuals, numOfSickIndividuals):
+    def __init__(self, params):
 
+        # TODO read params from file, craete population and individuals.
         # Create population of individuals.
         self._population = []
         for index in range(numOfIndividuals):
@@ -85,23 +104,19 @@ class Population:
     def population_status_count(self):
         # The count of not sick, sick, and recovered individuals currently
         # in population.
-        not_sick = 0
-        sick = 0
-        recovered = 0
+        pop_status_count = np.zeros(4,)
 
         for ind in self._population:
-            if ind._status == 0: not_sick += 1
-            if ind._status == 1: sick += 1
-            if ind._status == 2: recovered += 1
+            pop_status_count[ind._status] += 1
 
-        return [not_sick, sick, recovered]
+        return pop_status_count.tolist()
 
     def make_interactions(self):
         # For each individual, choose interaction with other individuals at random.
         # Store as 2-tuple (A,B)
         interactions = []
         for ind in self._population:
-            for idx in range(ind._numOfInteractions):
+            for idx in range(ind._interaction_amount):
                 interact_with_ind = self.get_random_individual()
                 # Only add if one is sick.
                 if interact_with_ind._isSick or ind._isSick:
@@ -116,6 +131,7 @@ class Population:
         """
         if ind1._isSick and ind2._status != 2:
             r = random.random()
+
             if r < ind2._interactionSicknessProb:
                 if ind2 not in self._sickPopulation:
                     ind2.make_sick(timestep)
@@ -123,7 +139,13 @@ class Population:
 
         if ind1._status != 2 and ind2._isSick:
             r = random.random()
+
             if r < ind1._interactionSicknessProb:
+                if ind1 not in self._sickPopulation:
+                    ind1.make_sick(timestep)
+                    self._sickPopulation.append(ind1)
+
+            if r < ind1._prob_sick_from_interaction:
                 if ind1 not in self._sickPopulation:
                     ind1.make_sick(timestep)
                     self._sickPopulation.append(ind1)
@@ -142,17 +164,21 @@ class Population:
 
             # Recover individuals
             for ind in self._sickPopulation:
-                if timestep - (ind._sickAtTime + ind._timeToRecover) >= 0:
+                if timestep - (ind._sick_at_time + ind._time_to_recover) >= 0:
                     ind.make_recover(timestep)
                     self._sickPopulation.remove(ind)
+
+            # Death of individuals
+            for ind in self._sickPopulation:
+                r = random.random()
+                if r < ind._prob_death:
+                    ind.make_dead(timestep)
 
             if display_status_count:
                 print(str(timestep) + ": " + str(self.population_status_count()))
 
 
-
 if __name__ == '__main__':
-    pop = Population(100, 1)
 
     params = json.load(open('cold_spread.json'))
     print(params["recover_time"][0])
