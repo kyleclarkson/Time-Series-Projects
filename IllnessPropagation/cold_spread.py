@@ -1,4 +1,8 @@
 import random
+import numpy as np
+import json
+
+from ReadParams import read_dict
 '''
     An experiment that stimulates the spread of an illness through a population.
 
@@ -148,11 +152,7 @@ class Population:
 
 
 if __name__ == '__main__':
-    pop = Population(100, 5)
+    pop = Population(100, 1)
 
-    print(pop.population_status_count())
-
-    pop.runExperiment(display_status_count=True)
-
-
-
+    params = json.load(open('cold_spread.json'))
+    print(params["recover_time"][0])
